@@ -17,9 +17,11 @@ class CryptoController extends Controller
         $validated = $request->validate([
             'plain_text' => 'required|string', // Plain text wajib diisi
             'secret_key_aes' => 'required|string', // Secret key AES wajib diisi
+            'secret_key_lsb' => 'required|string', // Secret key AES wajib diisi
             'image' => 'nullable|file|image', // Gambar opsional, harus berupa file gambar
         ]);
-
+        dd($validated);
+        
         // Simpan plain text dan secret key
         $plainText = $validated['plain_text'];
         $secretKeyAES = $validated['secret_key_aes'];
