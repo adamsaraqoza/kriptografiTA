@@ -4,7 +4,6 @@ namespace App\Libraries;
 
 class AES
 {
-
 	var $sBox = array(
 		array(0x63, 0x7C, 0x77, 0x7B, 0xF2, 0x6B, 0x6F, 0xC5, 0x30, 0x01, 0x67, 0x2B, 0xFE, 0xD7, 0xAB, 0x76),
 		array(0xCA, 0x82, 0xC9, 0x7D, 0xFA, 0x59, 0x47, 0xF0, 0xAD, 0xD4, 0xA2, 0xAF, 0x9C, 0xA4, 0x72, 0xC0),
@@ -24,7 +23,6 @@ class AES
 		array(0x8C, 0xA1, 0x89, 0x0D, 0xBF, 0xE6, 0x42, 0x68, 0x41, 0x99, 0x2D, 0x0F, 0xB0, 0x54, 0xBB, 0x16)
 	);
 
-	// The inverse S-Box substitution table.
 	var $invSBox = array(
 		array(0x52, 0x09, 0x6A, 0xD5, 0x30, 0x36, 0xA5, 0x38, 0xBF, 0x40, 0xA3, 0x9E, 0x81, 0xF3, 0xD7, 0xFB),
 		array(0x7C, 0xE3, 0x39, 0x82, 0x9B, 0x2F, 0xFF, 0x87, 0x34, 0x8E, 0x43, 0x44, 0xC4, 0xDE, 0xE9, 0xCB),
@@ -44,7 +42,6 @@ class AES
 		array(0x17, 0x2B, 0x04, 0x7E, 0xBA, 0x77, 0xD6, 0x26, 0xE1, 0x69, 0x14, 0x63, 0x55, 0x21, 0x0C, 0x7D)
 	);
 
-	// Log table based on 0xe5
 	var $ltable = array(
 		0x00,
 		0xff,
@@ -304,7 +301,6 @@ class AES
 		0x38
 	);
 
-	// Inverse log table
 	var $atable = array(
 		0x01,
 		0xe5,
@@ -564,32 +560,19 @@ class AES
 		0x01
 	);
 
-	# key schedule
 	var $w;
-	# posisi cursor key schedule
 	var $pos_w = 0;
-	# Blok pada Data AES
 	var $Nb;
-	# Blok pada Key AES
 	var $Nk;
-	# Jumlah Looping / Putaran
 	var $Nr;
-
 	var $log;
-
 	var $s;
-
 	var $state;
-
 	var $temp_w;
 
-	# Constructor class AES
-	# Parameter $z = key AES
 	public function __construct($z)
 	{
-		# Blok Data AES
 		$this->Nb = 4;
-		# Hitung panjang kunci
 		$this->Nk = strlen($z) / 4;
 
 		if ($this->Nk != 4 && $this->Nk != 6 && $this->Nk != 8)
@@ -601,62 +584,68 @@ class AES
 		$this->keyexpansion($z);
 	}
 
-	# function untuk melakukan proses enkripsi
-	# function yang berhubungan : 
-	#	addRoundKey(), subByte(), ShiftRow(), MixColumns()
+	private function pad($data)
+	{
+		$blockSize = 16;
+		$padLength = $blockSize - (strlen($data) % $blockSize);
+		return $data . str_repeat(chr($padLength), $padLength);
+	}
+
+	private function unpad($data)
+	{
+		$padLength = ord($data[strlen($data) - 1]);
+		if ($padLength > 16 || $padLength == 0) {
+			return $data;
+		}
+		return substr($data, 0, -$padLength);
+	}
+
 	function encrypt($input)
 	{
-
-		# memecah inputan/data ke dalam bentuk String
+		$input = $this->pad($input);
 		$data = str_split($input);
-
-		$state = array();
-		$count 	= 0;
-		$this->pos_w = 0;
-
-		for ($i = 0; $i < 4; $i++) {
-			for ($j = 0; $j < 4; $j++) {
-				if ($count < count($data)) {
-					$this->state[$i][$j] = ord($data[$count]);
-				} else {
-					$this->state[$i][$j] = 0;
-				}
-
-				$count++;
-			}
-		}
-
-		// AddRoundKey #1
-		for ($i = 0; $i < 4; $i++) {
-
-			for ($j = 0; $j < $this->Nb; $j++) {
-				$this->state[$i][$j] = $this->state[$i][$j] ^ $this->w[$i][$this->pos_w + $j];
-			}
-		}
-		$this->pos_w = $this->pos_w + $this->Nb;
-
-		for ($i = 0; $i < $this->Nr - 1; $i++) {
-
-			$this->state = $this->SubByte($this->state);
-
-			$this->state = $this->ShiftRow($this->state);
-
-			$this->state = $this->MixColumns($this->state);
-
-			$this->state = $this->AddRoundKey($this->state);
-			$this->pos_w = $this->pos_w + $this->Nb;
-		}
-
-		$this->state = $this->SubByte($this->state);
-
-		$this->state = $this->ShiftRow($this->state);
-
-		$this->state = $this->AddRoundKey($this->state);
-
 		$cipher = "";
-		foreach ($this->state as $state) {
-			foreach ($state as $data) {
-				$cipher .= chr($data);
+
+		for ($block = 0; $block < strlen($input); $block += 16) {
+			$this->pos_w = 0;
+			$state = array();
+			$count = $block;
+
+			for ($i = 0; $i < 4; $i++) {
+				for ($j = 0; $j < 4; $j++) {
+					if ($count < strlen($input)) {
+						$state[$i][$j] = ord($data[$count]);
+					} else {
+						$state[$i][$j] = 0;
+					}
+					$count++;
+				}
+			}
+
+			for ($i = 0; $i < 4; $i++) {
+				for ($j = 0; $j < $this->Nb; $j++) {
+					$state[$i][$j] = $state[$i][$j] ^ $this->w[$i][$this->pos_w + $j];
+				}
+			}
+			$this->pos_w += $this->Nb;
+
+			for ($i = 0; $i < $this->Nr - 1; $i++) {
+				$state = $this->SubByte($state);
+				$state = $this->ShiftRow($state);
+				$state = $this->MixColumns($state);
+				$state = $this->AddRoundKey($state);
+				$this->pos_w += $this->Nb;
+			}
+
+			$state = $this->SubByte($state);
+			$state = $this->ShiftRow($state);
+			$state = $this->AddRoundKey($state);
+			$this->pos_w += $this->Nb;
+
+			foreach ($state as $s) {
+				foreach ($s as $d) {
+					$cipher .= chr($d);
+				}
 			}
 		}
 
@@ -665,187 +654,162 @@ class AES
 
 	function decrypt($input)
 	{
-
 		$data = str_split($input);
-
-		$state = array();
-		$count 	= 0;
-		$this->pos_w = (($this->Nr + 1) * 4);
-		$modulo = 0;
-
-		for ($i = 0; $i < 4; $i++) {
-			for ($j = 0; $j < 4; $j++) {
-				$this->state[$i][$j] = ord($data[$count]);
-				$count++;
-			}
-		}
-
-		// AddRoundKey #1
-		$this->pos_w = ($this->pos_w) - 4;
-		for ($i = 0; $i < 4; $i++) {
-			$x = 0;
-			for ($j = $this->pos_w; $j < (($this->Nr + 1) * 4); $j++) {
-
-				$y = $x++;
-
-				$this->state[$i][$y] = $this->state[$i][$y] ^ $this->w[$i][$j];
-			}
-		}
-
-		for ($i = 0; $i < $this->Nr - 1; $i++) {
-
-			$this->state = $this->InvShiftRow($this->state);
-
-			$this->state = $this->InvSubByte($this->state);
-
-			$this->pos_w = ($this->pos_w) - $this->Nb;
-			$this->state = $this->AddRoundKey($this->state);
-
-			$this->state = $this->InvMixColumns($this->state);
-		}
-
-		$this->state = $this->InvShiftRow($this->state);
-
-		$this->state = $this->InvSubByte($this->state);
-
-		$this->pos_w = ($this->pos_w) - $this->Nb;
-		$this->state = $this->AddRoundKey($this->state);
-
 		$plain = "";
-		foreach ($this->state as $state) {
-			foreach ($state as $data) {
-				$plain .= chr($data);
+
+		for ($block = 0; $block < strlen($input); $block += 16) {
+			$this->pos_w = ($this->Nr + 1) * $this->Nb;
+			$state = array();
+			$count = $block;
+
+			for ($i = 0; $i < 4; $i++) {
+				for ($j = 0; $j < 4; $j++) {
+					if ($count < strlen($input)) {
+						$state[$i][$j] = ord($data[$count]);
+					} else {
+						$state[$i][$j] = 0;
+					}
+					$count++;
+				}
+			}
+
+			$this->pos_w -= $this->Nb;
+			for ($i = 0; $i < 4; $i++) {
+				for ($j = 0; $j < $this->Nb; $j++) {
+					$state[$i][$j] = $state[$i][$j] ^ $this->w[$i][$this->pos_w + $j];
+				}
+			}
+
+			for ($i = 0; $i < $this->Nr - 1; $i++) {
+				$state = $this->InvShiftRow($state);
+				$state = $this->InvSubByte($state);
+				$this->pos_w -= $this->Nb;
+				$state = $this->AddRoundKey($state);
+				$state = $this->InvMixColumns($state);
+			}
+
+			$state = $this->InvShiftRow($state);
+			$state = $this->InvSubByte($state);
+			$this->pos_w -= $this->Nb;
+			$state = $this->AddRoundKey($state);
+
+			foreach ($state as $s) {
+				foreach ($s as $d) {
+					$plain .= chr($d);
+				}
 			}
 		}
 
-		return $plain;
+		return $this->unpad($plain);
 	}
 
-	# function untuk menggabungkan DATA denga KUNCI
-	# State XOR Key Schedule
 	function AddRoundKey($data)
 	{
-
 		$state = array();
 		for ($i = 0; $i < 4; $i++) {
-
-			$this->temp_w = $this->pos_w;
 			for ($j = 0; $j < $this->Nb; $j++) {
-
 				$state[$i][$j] = $data[$i][$j] ^ $this->w[$i][$this->pos_w + $j];
 			}
 		}
-
 		return $state;
 	}
 
 	function SubByte($data)
 	{
-
 		$state = $data;
-
 		for ($i = 0; $i < $this->Nb; $i++) {
 			for ($j = 0; $j < 4; $j++) {
 				$state[$i][$j] = $this->subword($state[$i][$j]);
 			}
 		}
-
 		return $state;
 	}
 
 	function ShiftRow($data)
 	{
-
 		$state = array();
-
 		for ($i = 0; $i < 4; $i++) {
 			for ($j = 0; $j < $this->Nb; $j++) {
-
 				$state[$i][$j] = $data[$i][($j + $i) % 4];
 			}
 		}
-
 		return $state;
 	}
 
 	function MixColumns($data)
 	{
-
 		$state = array();
-
 		for ($i = 0; $i < $this->Nb; $i++) {
+			// Validasi nilai byte
+			for ($j = 0; $j < 4; $j++) {
+				$data[$j][$i] = $data[$j][$i] & 0xFF; // Pastikan 0–255
+			}
 			$state[0][$i] = $this->mult(0x02, $data[0][$i]) ^ $this->mult(0x03, $data[1][$i]) ^ $this->mult(0x01, $data[2][$i]) ^ $this->mult(0x01, $data[3][$i]);
 			$state[1][$i] = $this->mult(0x01, $data[0][$i]) ^ $this->mult(0x02, $data[1][$i]) ^ $this->mult(0x03, $data[2][$i]) ^ $this->mult(0x01, $data[3][$i]);
 			$state[2][$i] = $this->mult(0x01, $data[0][$i]) ^ $this->mult(0x01, $data[1][$i]) ^ $this->mult(0x02, $data[2][$i]) ^ $this->mult(0x03, $data[3][$i]);
 			$state[3][$i] = $this->mult(0x03, $data[0][$i]) ^ $this->mult(0x01, $data[1][$i]) ^ $this->mult(0x01, $data[2][$i]) ^ $this->mult(0x02, $data[3][$i]);
 		}
-
 		return $state;
 	}
 
 	function InvSubByte($data)
 	{
-
 		$state = $data;
-
 		for ($i = 0; $i < $this->Nb; $i++) {
 			for ($j = 0; $j < 4; $j++) {
 				$state[$i][$j] = $this->invSub($state[$i][$j]);
 			}
 		}
-
 		return $state;
 	}
 
 	function InvShiftRow($data)
 	{
-
 		$state = array();
-
 		for ($i = 0; $i < 4; $i++) {
 			for ($j = 0; $j < $this->Nb; $j++) {
-
 				$state[$i][($j + $i) % 4] = $data[$i][$j];
 			}
 		}
-
 		return $state;
 	}
 
 	function InvMixColumns($data)
 	{
-
 		$state = array();
-
 		for ($i = 0; $i < $this->Nb; $i++) {
+			// Validasi nilai byte
+			for ($j = 0; $j < 4; $j++) {
+				$data[$j][$i] = $data[$j][$i] & 0xFF; // Pastikan 0–255
+			}
 			$state[0][$i] = $this->mult(0x0e, $data[0][$i]) ^ $this->mult(0x0b, $data[1][$i]) ^ $this->mult(0x0d, $data[2][$i]) ^ $this->mult(0x09, $data[3][$i]);
 			$state[1][$i] = $this->mult(0x09, $data[0][$i]) ^ $this->mult(0x0e, $data[1][$i]) ^ $this->mult(0x0b, $data[2][$i]) ^ $this->mult(0x0d, $data[3][$i]);
 			$state[2][$i] = $this->mult(0x0d, $data[0][$i]) ^ $this->mult(0x09, $data[1][$i]) ^ $this->mult(0x0e, $data[2][$i]) ^ $this->mult(0x0b, $data[3][$i]);
 			$state[3][$i] = $this->mult(0x0b, $data[0][$i]) ^ $this->mult(0x0d, $data[1][$i]) ^ $this->mult(0x09, $data[2][$i]) ^ $this->mult(0x0e, $data[3][$i]);
 		}
-
 		return $state;
 	}
 
 	function mult($a, $b)
 	{
+		// Validasi input
+		$a = $a & 0xFF; // Pastikan 0–255
+		$b = $b & 0xFF;
+		if ($a == 0 || $b == 0) {
+			return 0;
+		}
+
+		// Hitung sum dengan aman
 		$sum = $this->ltable[$a] + $this->ltable[$b];
-		$sum %= 255;
-		// Get the antilog
-		$sum = $this->atable[$sum];
-		return ($a == 0 ? 0 : ($b == 0 ? 0 : $sum));
+		// Pastikan sum positif dan dalam range 0–255
+		$sum = ($sum % 255 + 255) % 255;
+		return $this->atable[$sum];
 	}
 
-	# function untuk melakukan Generate Key
 	function keyexpansion($key)
 	{
-
-		# memecah String menjadi Array per karakter
 		$arrkey = str_split($key);
-		# variable untuk kursor index String Key
-		$count 	= 0;
-
-		# konstanta Rcon
+		$count = 0;
 		static $rcon = array(
 			array(0x01, 0x00, 0x00, 0x00),
 			array(0x02, 0x00, 0x00, 0x00),
@@ -859,8 +823,6 @@ class AES
 			array(0x36, 0x00, 0x00, 0x00)
 		);
 
-		# Salin Key ke variable w (Key Schedule)
-		# ord() : untuk mendapatkan nilai ASCII dari suatu karakter
 		for ($i = 0; $i < $this->Nb; $i++) {
 			for ($j = 0; $j < 4; $j++) {
 				$this->w[$i][$j] = ord($arrkey[$count]);
@@ -868,39 +830,23 @@ class AES
 			}
 		}
 
-		# posisi cursor rcon()
 		$count_rcon = 0;
-		# proses Generate Key
-		# function yang berhubungan : subword() , rotword()
-		for ($i = 4; $i < 44; $i++) {
+		for ($i = 4; $i < ($this->Nr + 1) * $this->Nb; $i++) {
 			for ($j = 0; $j < 4; $j++) {
-				# mengambil nilai columns w(i-1)
-				$wmin1	= $this->w[$j][$i - 1];
-				# mengambil nilai columns w(i-4)
-				$wmin4	= $this->w[$j][$i - 4];
-
-				# melakukan pengecekan apakah i merupakan awal dari block
+				$wmin1 = $this->w[$j][$i - 1];
+				$wmin4 = $this->w[$j][$i - 4];
 				if ($i % 4 == 0) {
-					# Proses rotword()
 					if ($j != 3)
-						$wmin1	= $this->w[$j + 1][$i - 1];
+						$wmin1 = $this->w[$j + 1][$i - 1];
 					else
-						$wmin1	= $this->w[0][$i - 1];
-
-					# melakukan XOR pada : w(i-1) XOR w(i-4) XOR rcon()
-					# w(i-1) mengalami proses subword() : pertukaran dengan data dari table sBox
+						$wmin1 = $this->w[0][$i - 1];
 					$this->w[$j][$i] = $this->subword($wmin1) ^ $wmin4 ^ $rcon[$count_rcon][$j];
-
-					# cursor rcon() berpindah ke rcon selanjutnya
 					if ($j == 3) $count_rcon++;
 				} else {
-					# bukan merupakan awal block
-					# melakukan XOR pada : w(i-1) XOR w(i-4)
 					$this->w[$j][$i] = $wmin1 ^ $wmin4;
 				}
 			}
 		}
-		# mengembalikan nilai array w[][] setelah mengalami proses keyexpansion
 		return $this->w;
 	}
 
@@ -911,40 +857,29 @@ class AES
 
 	function subword($byte)
 	{
-		# menghitung panjang inputan yang sudah dikonversikan menjadi HEX
-		# jika panjang inputan 2
+		$byte = $byte & 0xFF; // Pastikan 0–255
 		if (strlen(dechex($byte)) == 2) {
-			# konversi inputan kedalam bentuk HEX
-			# memecah inputan menjadi array
-			$hex 	= str_split(dechex($byte));
-
-			# karakter ke-1 menjadi index baris
-			$r		= hexdec($hex[0]);
-			# karakter ke-2 menjadi index kolom
-			$c		= hexdec($hex[1]);
+			$hex = str_split(dechex($byte));
+			$r = hexdec($hex[0]);
+			$c = hexdec($hex[1]);
 		} else {
-			# jika panjang inputan 1
 			$r = 0;
-			# inputan menjadi index kolom
 			$c = $byte;
 		}
-
-		# mengembalikan nilai table sBox berdasarkan index baris & kolom
-		# r : baris | c : kolom
 		return $this->sBox[$r][$c];
 	}
 
 	function invSub($byte)
 	{
+		$byte = $byte & 0xFF; // Pastikan 0–255
 		if (strlen(dechex($byte)) == 2) {
-			$hex 	= str_split(dechex($byte));
-			$r		= hexdec($hex[0]);
-			$c		= hexdec($hex[1]);
+			$hex = str_split(dechex($byte));
+			$r = hexdec($hex[0]);
+			$c = hexdec($hex[1]);
 		} else {
 			$r = 0;
 			$c = $byte;
 		}
-
 		return $this->invSBox[$r][$c];
 	}
 }

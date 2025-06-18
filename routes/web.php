@@ -18,8 +18,13 @@ Route::post(
 )->name('encryptLsb');
 
 Route::post(
-    '/decrypt',
-    [CryptoController::class, 'decrypt']
-)->name('decrypt');
+    '/decrypt-aes',
+    [CryptoController::class, 'decryptAes']
+)->name('decryptAes');
+
+Route::post(
+    '/decrypt-lsb',
+    [CryptoController::class, 'decryptLsb']
+)->name('decryptLsb');
 
 Route::get('/download-lsb/{filename}', [CryptoController::class, 'downloadLsb'])->name('download.lsb');

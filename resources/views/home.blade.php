@@ -77,10 +77,10 @@
                                         placeholder="Plain Text" rows="3"></textarea>
                                 </div>
                                 <div class="my-5">
-                                    <label for="secret-key-aes-dec"
+                                    <label for="secret-key-aes-enc"
                                         class="block mb-2 text-sm font-medium text-gray-900 dark:text-gray">Secret Key -
                                         AES</label>
-                                    <input type="text" id="secret-key-aes-dec" name="secret_key_aes"
+                                    <input type="text" id="secret-key-aes-enc" name="secret_key_aes"
                                         class="block w-full p-2 text-gray-900 border border-white-300 rounded-lg bg-white-50 text-sm"
                                         placeholder="Masukkan 16 karakter" minlength="16" maxlength="16" required>
                                     <p id="key-error" class="mt-1 text-sm text-red-600 hidden">Kunci AES harus tepat 16
@@ -133,26 +133,10 @@
                         </div>
 
                         <div class="grow">
-                            <form id="decryptionForm" class="max-w-sm mx-auto">
+                            <form id="decryptionLsbForm" class="max-w-sm mx-auto"">
                                 <p class="py-4 font-bold text-2xl">Decryption</p>
-                                <div class="mb-5">
-                                    <label for="encrypted-text-dec"
-                                        class="block mb-2 text-sm font-medium text-gray-900 dark:text-gray">Encrypted
-                                        Text</label>
-                                    <textarea id="encrypted-text-dec" name="encrypted_text"
-                                        class="block w-full p-2 text-gray-900 border border-white-300 rounded-lg bg-white-50 text-sm"
-                                        placeholder="Encrypted Text" rows="3"></textarea>
-                                </div>
-                                <div class="mb-5">
-                                    <label for="secret-key-aes-dec"
-                                        class="block mb-2 text-sm font-medium text-gray-900 dark:text-gray">Secret Key
-                                        -
-                                        AES</label>
-                                    <input type="text" id="secret-key-aes-dec" name="secret_key_aes"
-                                        class="block w-full p-2 text-gray-900 border border-white-300 rounded-lg bg-white-50 text-sm"
-                                        placeholder="Password">
-                                </div>
                                 <div class="bg-white p-6 mb-5 rounded-lg shadow-md w-full">
+
                                     <label for="imageupload-dec" class="block text-gray-700 font-semibold mb-2">Upload
                                         Gambar LSB</label>
                                     <div
@@ -174,8 +158,48 @@
                                             Gambar</button>
                                     </div>
                                 </div>
-                                <button type="submit" /onclick="openModal('Decrypted')"
-                                    class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">Decrypt</button>
+                                <button id="btnDecryptLsb" type="submit"
+                                    class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
+                                    <span class="spinner"></span>
+                                    <span class="button-text">Dekripsi LSB</span>
+                                </button>
+                            </form>
+                            <form id="decryptionAesForm" class="max-w-sm mx-auto">
+                                <div class="my-5">
+                                    <label for="chiper-text-dec"
+                                        class="block mb-2 text-sm font-medium text-gray-900 dark:text-gray">
+                                        Decrypted Chiper Text
+                                    </label>
+                                    <textarea id="chiper-text-dec" name="decrypted_chiper_text"
+                                        class="block w-full p-2 text-gray-500 border border-gray-300 rounded-lg bg-gray-100 text-sm cursor-not-allowed"
+                                        placeholder="Chiper Text" rows="3" readonly></textarea>
+                                </div>
+                                <div class="my-5">
+                                    <label for="secret-key-aes-dec"
+                                        class="block mb-2 text-sm font-medium text-gray-900 dark:text-gray">Secret Key
+                                        -
+                                        AES</label>
+                                    <input type="text" id="secret-key-aes-dec" name="secret_key_aes"
+                                        class="block w-full p-2 text-gray-900 border border-white-300 rounded-lg bg-white-50 text-sm"
+                                        placeholder="Masukkan 16 karakter" minlength="16" maxlength="16" required>
+                                    <p id="key-error" class="mt-1 text-sm text-red-600 hidden">Kunci AES harus tepat
+                                        16
+                                        karakter.</p>
+                                </div>
+                                <button id="btnEnrcyptAes" type="submit"
+                                    class="w-full text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
+                                    <span class="spinner"></span>
+                                    <span class="button-text">Dekripsi AES 128</span>
+                                </button>
+                                <div class="my-5">
+                                    <label for="plain-text-dec"
+                                        class="block mb-2 text-sm font-medium text-gray-900 dark:text-gray">Plain
+                                        Text</label>
+                                    <textarea id="plain-text-dec" name="plain_text"
+                                        class="block w-full p-2 text-gray-500 border border-gray-300 rounded-lg bg-gray-100 text-sm"
+                                        placeholder="Plain Text" rows="3" readonly></textarea>
+                                </div>
+
                             </form>
                         </div>
                     </div>
@@ -405,13 +429,28 @@
             });
 
             // Handle decryption form submission
-            $('#decryptionForm').on('submit', function(e) {
+            $('#decryptionLsbForm').on('submit', function(e) {
                 e.preventDefault();
+
+                const button = $('#btnDecryptLsb');
+                const spinner = $('<span class="spinner"></span>').css({
+                    display: 'inline-block',
+                    width: '1.5rem',
+                    height: '1.5rem',
+                    border: '3px solid rgba(255, 255, 255, 0.3)',
+                    borderRadius: '50%',
+                    borderTopColor: '#fff',
+                    animation: 'spin 1s ease-in-out infinite',
+                    marginRight: '0.5rem'
+                });
+
+
+                button.prepend(spinner).prop('disabled', true).addClass('loading');
 
                 const formData = new FormData(this);
 
                 $.ajax({
-                    url: '/decrypt',
+                    url: '/decrypt-lsb',
                     type: 'POST',
                     data: formData,
                     processData: false,
@@ -420,16 +459,40 @@
                         'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
                     },
                     success: function(response) {
+                        spinner.remove();
+                        button.prop('disabled', false).removeClass('loading');
+
                         if (response.status === 'success') {
-                            alert('Dekripsi berhasil!');
-                            $('#chiper-text-enc').html(response.encrypted_text);
+                            $('#chiper-text-dec').val(response.encrypted_text || '');
+                            // $('#decrypted-text-dec').val(response.decrypted_text || '');
+                            Swal.fire({
+                                icon: 'success',
+                                title: 'Dekripsi Berhasil!',
+                                text: response.message,
+                                showConfirmButton: true,
+                                confirmButtonText: 'Oke'
+                            });
                             console.log(response);
-                        } else {
-                            alert('Terjadi kesalahan: ' + response.message);
                         }
                     },
                     error: function(xhr) {
-                        alert('Error: ' + xhr.responseText);
+                        spinner.remove();
+                        button.prop('disabled', false).removeClass('loading');
+                        let response;
+                        try {
+                            response = JSON.parse(xhr.responseText);
+                        } catch (e) {
+                            response = {
+                                message: xhr.responseText ||
+                                    'Terjadi kesalahan tidak diketahui.'
+                            };
+                        }
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Terjadi Kesalahan',
+                            text: response.message,
+                            confirmButtonText: 'Oke'
+                        });
                     },
                 });
             });
@@ -465,6 +528,92 @@
                 previewContainer.classList.add('hidden'); // Sembunyikan container jika tidak ada file
             }
         }
+
+        $('#decryptionAesForm').on('submit', function(e) {
+            e.preventDefault();
+
+            const secretKey = $('#secret-key-aes-dec').val();
+            const keyError = $('#key-error');
+            const chiperText = $('#chiper-text-dec').val();
+
+            if (secretKey.length !== 16) {
+                keyError.removeClass('hidden');
+                return;
+            } else {
+                keyError.addClass('hidden');
+            }
+
+            if (!chiperText) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Chiper Text Kosong',
+                    text: 'Harap lakukan dekripsi LSB terlebih dahulu.',
+                    confirmButtonText: 'Oke'
+                });
+                return;
+            }
+
+            const button = $('#btnDecryptAes');
+            const spinner = $('<span class="spinner"></span>').css({
+                display: 'inline-block',
+                width: '1.5rem',
+                height: '1.5rem',
+                border: '3px solid rgba(255, 255, 255, 0.3)',
+                borderRadius: '50%',
+                borderTopColor: '#fff',
+                animation: 'spin 1s ease-in-out infinite',
+                marginRight: '0.5rem'
+            });
+
+            button.prepend(spinner).prop('disabled', true).addClass('loading');
+
+            const formData = new FormData(this);
+
+            $.ajax({
+                url: '/decrypt-aes',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                headers: {
+                    'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+                },
+                success: function(response) {
+                    spinner.remove();
+                    button.prop('disabled', false).removeClass('loading');
+
+                    if (response.status === 'success') {
+                        $('#plain-text-dec').val(response.decrypted_text || '');
+                        Swal.fire({
+                            icon: 'success',
+                            title: 'Dekripsi AES Berhasil!',
+                            text: response.message,
+                            showConfirmButton: true,
+                            confirmButtonText: 'Oke'
+                        });
+                        console.log(response);
+                    }
+                },
+                error: function(xhr) {
+                    spinner.remove();
+                    button.prop('disabled', false).removeClass('loading');
+                    let response;
+                    try {
+                        response = JSON.parse(xhr.responseText);
+                    } catch (e) {
+                        response = {
+                            message: xhr.responseText || 'Terjadi kesalahan tidak diketahui.'
+                        };
+                    }
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Terjadi Kesalahan',
+                        text: response.message,
+                        confirmButtonText: 'Oke'
+                    });
+                },
+            });
+        });
 
         function removeImage(inputId, previewId) {
             const input = document.getElementById(inputId); // Input file

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Exception;
 use App\Libraries\AES;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\Storage;
 
@@ -15,38 +16,60 @@ class CryptoController extends Controller
      */
     public function encryptAes(Request $request)
     {
-        // Validasi input
         $validated = $request->validate([
             'plain_text' => 'required|string',
-            'secret_key_aes' => 'required|string',
+            'secret_key_aes' => 'required|string|size:16',
         ]);
 
         $plainText = $validated['plain_text'];
         $secretKeyAES = $validated['secret_key_aes'];
 
-        // Pastikan panjang secret key adalah 16 karakter untuk AES-128
-        if (strlen($secretKeyAES) !== 16) {
+        try {
+            $aes = new AES($secretKeyAES);
+            $encryptedText = $aes->encrypt($plainText);
+            $encryptedTextBase64 = base64_encode($encryptedText);
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Enkripsi berhasil!',
+                'encrypted_text' => $encryptedTextBase64,
+            ]);
+        } catch (Exception $e) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Secret key harus tepat 16 karakter untuk AES-128.',
+                'message' => 'Enkripsi AES gagal: ' . $e->getMessage(),
             ], 400);
         }
+    }
 
-        // Buat instance AES
-        $aes = new AES($secretKeyAES);
-
-        // Enkripsi plaintext
-        $encryptedText = $aes->encrypt($plainText);
-
-        // Encode ke Base64 agar aman saat dikirim via JSON
-        $encryptedTextBase64 = base64_encode($encryptedText);
-
-        // Kirim respons
-        return response()->json([
-            'status' => 'success',
-            'message' => 'Enkripsi berhasil!',
-            'encrypted_text' => $encryptedTextBase64,
+    /**
+     * Fungsi untuk menangani dekripsi AES.
+     */
+    public function decryptAes(Request $request)
+    {
+        $validated = $request->validate([
+            'decrypted_chiper_text' => 'required|string',
+            'secret_key_aes' => 'required|string|size:16',
         ]);
+
+        $encryptedText = $validated['decrypted_chiper_text'];
+        $secretKeyAES = $validated['secret_key_aes'];
+
+        try {
+            $aes = new AES($secretKeyAES);
+            $decryptedText = $aes->decrypt(base64_decode($encryptedText));
+
+            return response()->json([
+                'status' => 'success',
+                'message' => 'Dekripsi berhasil!',
+                'decrypted_text' => $decryptedText,
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Dekripsi AES gagal: ' . $e->getMessage(),
+            ], 400);
+        }
     }
 
     /**
@@ -54,30 +77,33 @@ class CryptoController extends Controller
      */
     public function encryptLsb(Request $request)
     {
-        // Validasi input
         $validated = $request->validate([
             'chiper_text' => 'required|string',
-            'image' => 'required|file|image|mimes:png|max:10240', // Maks 2MB
+            'image' => 'required|file|image|mimes:png|max:10240',
         ]);
 
-        $chipperTextAes = $validated['chiper_text'];
+        $chipperTextBase64 = $validated['chiper_text'];
 
-        // Simpan gambar sementara
         try {
+            // Dekode Base64 dari chiper_text
+            $chipperText = base64_decode($chipperTextBase64, true);
+            if ($chipperText === false) {
+                throw new Exception('Gagal mendekode Base64 dari chiper text.');
+            }
+
             $image = $request->file('image');
             $imagePath = $image->getPathname();
             $outputFilename = 'encoded_' . uniqid() . '.png';
             $outputPath = storage_path('app/public/' . $outputFilename);
 
-            // Jalankan embed LSB
-            $this->embedLSB($imagePath, $chipperTextAes, $outputPath);
+            // Jalankan embed LSB dengan teks mentah
+            $this->embedLSB($imagePath, $chipperText, $outputPath);
 
             // Verifikasi file output
             if (!file_exists($outputPath) || mime_content_type($outputPath) !== 'image/png') {
                 throw new Exception('Gagal menghasilkan file gambar PNG.');
             }
 
-            // Kirim respons
             return response()->json([
                 'status' => 'success',
                 'message' => 'Enkripsi LSB berhasil!',
@@ -108,11 +134,53 @@ class CryptoController extends Controller
     }
 
     /**
+     * Fungsi untuk menangani dekripsi LSB.
+     */
+    public function decryptLsb(Request $request)
+    {
+        $validated = $request->validate([
+            'image' => 'required|file|image|mimes:png|max:10240',
+            // 'secret_key_AES' => 'nullable|string|size:16',
+        ]);
+
+        try {
+            $imagePath = $request->file('image')->getPathname();
+            $secretKeyAES = $validated['secret_key_AES'] ?? null;
+
+            // Ekstrak teks dari gambar
+            $encryptedText = $this->extractLSB($imagePath);
+
+            // Encode kembali ke Base64 untuk ditampilkan
+            $encryptedTextBase64 = base64_encode($encryptedText);
+
+            $response = [
+                'status' => 'success',
+                'message' => 'Ekstraksi LSB berhasil!',
+                'encrypted_text' => $encryptedTextBase64,
+            ];
+
+            // Jika kunci AES diberikan, lakukan dekripsi
+            // if ($secretKeyAES) {
+            //     $aes = new AES($secretKeyAES);
+            //     $decryptedText = $aes->decrypt($encryptedText);
+            //     $response['decrypted_text'] = $decryptedText;
+            //     $response['message'] = 'Ekstraksi LSB dan dekripsi AES berhasil!';
+            // }
+
+            return response()->json($response);
+        } catch (Exception $e) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Dekripsi LSB gagal: ' . $e->getMessage(),
+            ], 400);
+        }
+    }
+
+    /**
      * Menyisipkan data ke dalam gambar PNG menggunakan LSB dengan pengacakan XOR.
      */
     private function embedLSB($imagePath, $data, $outputPath)
     {
-        // Validasi file gambar
         if (!file_exists($imagePath) || !($img = @imagecreatefrompng($imagePath))) {
             throw new Exception('Gagal membuka gambar atau format tidak didukung.');
         }
@@ -120,10 +188,15 @@ class CryptoController extends Controller
         $width = imagesx($img);
         $height = imagesy($img);
 
-        // Konversi data ke biner
+        // Tambahkan penanda MAGIC123
+        $magic = 'MAGIC123';
         $dataLength = strlen($data);
         $lengthBinary = str_pad(decbin($dataLength), 32, '0', STR_PAD_LEFT);
-        $binaryData = $lengthBinary;
+        $binaryData = '';
+        foreach (str_split($magic) as $char) {
+            $binaryData .= str_pad(decbin(ord($char)), 8, '0', STR_PAD_LEFT);
+        }
+        $binaryData .= $lengthBinary;
         foreach (str_split($data) as $char) {
             $binaryData .= str_pad(decbin(ord($char)), 8, '0', STR_PAD_LEFT);
         }
@@ -131,7 +204,8 @@ class CryptoController extends Controller
         $len = strlen($binaryData);
         $requiredPixels = ceil($len / 3);
 
-        // Validasi kapasitas gambar
+        Log::info("embedLSB: Magic='$magic', dataLength=$dataLength, totalBits=$len, requiredPixels=$requiredPixels, availablePixels=" . ($width * $height));
+
         if ($requiredPixels > $width * $height) {
             imagedestroy($img);
             throw new Exception('Gambar terlalu kecil untuk menampung data.');
@@ -139,7 +213,6 @@ class CryptoController extends Controller
 
         $dataIndex = 0;
 
-        // Iterasi piksel
         for ($y = 0; $y < $height && $dataIndex < $len; $y++) {
             for ($x = 0; $x < $width && $dataIndex < $len; $x++) {
                 $rgb = imagecolorat($img, $x, $y);
@@ -147,34 +220,18 @@ class CryptoController extends Controller
                 $g = ($rgb >> 8) & 0xFF;
                 $b = $rgb & 0xFF;
 
-                // Proses setiap saluran (R, G, B)
                 $channels = [&$r, &$g, &$b];
                 foreach ($channels as &$channel) {
-                    if ($dataIndex >= $len) {
-                        break;
-                    }
+                    if ($dataIndex >= $len) break;
 
-                    // Ambil bit 5, 6, 7, 8
-                    $bit8 = $channel & 0x01;
-                    $bit7 = ($channel >> 1) & 0x01;
-                    $bit6 = ($channel >> 2) & 0x01;
                     $bit5 = ($channel >> 3) & 0x01;
-
-                    // Pengacakan XOR
-                    $newBit8 = $bit7 ^ $bit8;
-                    $newBit7 = $bit6 ^ $bit7;
-                    $newBit6 = $bit5 ^ $bit6;
-
-                    // Bit data yang akan disisipkan
                     $dataBit = (int)$binaryData[$dataIndex++];
 
-                    // Jika bit 6 baru tidak sama dengan bit data, ubah bit 6 asli
-                    if ($newBit6 !== $dataBit) {
-                        $channel = ($channel & ~(1 << 2)) | ($dataBit << 2);
-                    }
+                    // Set bit6 sehingga (bit5 ^ bit6) = dataBit
+                    $bit6 = $bit5 ^ $dataBit;
+                    $channel = ($channel & ~(1 << 2)) | ($bit6 << 2);
                 }
 
-                // Set warna baru
                 $newColor = imagecolorallocate($img, $r, $g, $b);
                 if ($newColor === false) {
                     imagedestroy($img);
@@ -184,11 +241,96 @@ class CryptoController extends Controller
             }
         }
 
-        // Simpan dan bersihkan
         if (!imagepng($img, $outputPath)) {
             imagedestroy($img);
             throw new Exception('Gagal menyimpan gambar output.');
         }
+        Log::info("embedLSB: Output image saved at $outputPath, size=" . filesize($outputPath));
         imagedestroy($img);
+    }
+
+    /**
+     * Mengekstrak data dari gambar PNG menggunakan LSB dengan pengacakan XOR.
+     */
+    private function extractLSB($imagePath)
+    {
+        if (!file_exists($imagePath) || !($img = @imagecreatefrompng($imagePath))) {
+            throw new Exception('Gagal membuka gambar atau format tidak didukung.');
+        }
+
+        $width = imagesx($img);
+        $height = imagesy($img);
+        $binaryData = '';
+        $dataIndex = 0;
+
+        // Baca semua bit secara berurutan
+        for ($y = 0; $y < $height && strlen($binaryData) < 1048576 * 8; $y++) {
+            for ($x = 0; $x < $width && strlen($binaryData) < 1048576 * 8; $x++) {
+                $rgb = imagecolorat($img, $x, $y);
+                $r = ($rgb >> 16) & 0xFF;
+                $g = ($rgb >> 8) & 0xFF;
+                $b = $rgb & 0xFF;
+
+                $channels = [$r, $g, $b];
+                foreach ($channels as $channel) {
+                    if (strlen($binaryData) >= 1048576 * 8) break;
+                    $bit5 = ($channel >> 3) & 0x01;
+                    $bit6 = ($channel >> 2) & 0x01;
+                    $binaryData .= $bit5 ^ $bit6;
+                    $dataIndex++;
+                }
+            }
+        }
+
+        // Ekstrak penanda MAGIC123 (64 bit)
+        if (strlen($binaryData) < 64) {
+            imagedestroy($img);
+            throw new Exception('Gambar tidak cukup besar untuk menampung penanda.');
+        }
+        $magic = '';
+        for ($i = 0; $i < 64; $i += 8) {
+            $byte = substr($binaryData, $i, 8);
+            $magic .= chr(bindec($byte));
+        }
+        Log::info("extractLSB: Magic marker found: '$magic'");
+        if ($magic !== 'MAGIC123') {
+            imagedestroy($img);
+            throw new Exception('Gambar tidak mengandung data LSB valid (penanda tidak cocok).');
+        }
+
+        // Ekstrak panjang data (32 bit)
+        if (strlen($binaryData) < 64 + 32) {
+            imagedestroy($img);
+            throw new Exception('Gambar tidak cukup besar untuk menampung panjang data.');
+        }
+        $lengthBinary = substr($binaryData, 64, 32);
+        $dataLength = bindec($lengthBinary);
+        Log::info("extractLSB: dataLength=$dataLength, requiredPixels=" . ceil(($dataLength * 8) / 3) . ", availablePixels=" . ($width * $height));
+        if ($dataLength > 1048576 || $dataLength < 0) {
+            imagedestroy($img);
+            throw new Exception('Panjang data tidak valid: ' . $dataLength);
+        }
+
+        // Validasi piksel yang diperlukan
+        $requiredPixels = ceil(($dataLength * 8 + 96) / 3); // 64 bit penanda + 32 bit panjang
+        if ($requiredPixels > $width * $height) {
+            imagedestroy($img);
+            throw new Exception('Gambar tidak cukup besar untuk data. DataLength: ' . $dataLength . ', Required Pixels: ' . $requiredPixels . ', Available Pixels: ' . ($width * $height));
+        }
+
+        // Ekstrak data
+        if (strlen($binaryData) < 64 + 32 + $dataLength * 8) {
+            imagedestroy($img);
+            throw new Exception('Gambar tidak cukup besar untuk menampung data.');
+        }
+        $dataBinary = substr($binaryData, 64 + 32, $dataLength * 8);
+        $result = '';
+        for ($i = 0; $i < strlen($dataBinary); $i += 8) {
+            $byte = substr($dataBinary, $i, 8);
+            $result .= chr(bindec($byte));
+        }
+
+        imagedestroy($img);
+        return $result;
     }
 }
