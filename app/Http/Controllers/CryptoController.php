@@ -179,6 +179,9 @@ class CryptoController extends Controller
     /**
      * Menyisipkan data ke dalam gambar PNG menggunakan LSB dengan pengacakan XOR.
      */
+    /**
+     * Menyisipkan data ke dalam gambar PNG menggunakan LSB dengan XOR 3 bit sebagai pengacak.
+     */
     private function embedLSB($imagePath, $data, $outputPath)
     {
         if (!file_exists($imagePath) || !($img = @imagecreatefrompng($imagePath))) {
@@ -224,12 +227,27 @@ class CryptoController extends Controller
                 foreach ($channels as &$channel) {
                     if ($dataIndex >= $len) break;
 
+                    // Ambil bit 5, 6, 7, 8
                     $bit5 = ($channel >> 3) & 0x01;
-                    $dataBit = (int)$binaryData[$dataIndex++];
+                    $bit6 = ($channel >> 2) & 0x01;
+                    $bit7 = ($channel >> 1) & 0x01;
+                    $bit8 = $channel & 0x01;
 
-                    // Set bit6 sehingga (bit5 ^ bit6) = dataBit
-                    $bit6 = $bit5 ^ $dataBit;
-                    $channel = ($channel & ~(1 << 2)) | ($bit6 << 2);
+                    // XOR 3 bit cover sebagai pengacak
+                    $newBit8 = $bit8 ^ $bit7;
+                    $newBit7 = $bit7 ^ $bit6;
+                    $newBit6 = $bit6 ^ $bit5;
+
+                    // Ubah channel
+                    $channel = ($channel & ~(1 << 2)) | ($newBit6 << 2);
+                    $channel = ($channel & ~(1 << 1)) | ($newBit7 << 1);
+                    $channel = ($channel & ~(1 << 0)) | ($newBit8 << 0);
+
+                    // Sisipkan pesan di bit 8
+                    $dataBit = (int)$binaryData[$dataIndex++];
+                    $channel = ($channel & ~(1 << 0)) | ($dataBit << 0);
+
+                    Log::info("embedLSB: pixel($x,$y), channel=" . sprintf('%08b', $channel) . ", dataBit=$dataBit");
                 }
 
                 $newColor = imagecolorallocate($img, $r, $g, $b);
@@ -250,7 +268,7 @@ class CryptoController extends Controller
     }
 
     /**
-     * Mengekstrak data dari gambar PNG menggunakan LSB dengan pengacakan XOR.
+     * Mengekstrak data dari gambar PNG menggunakan LSB (baca bit 8 langsung).
      */
     private function extractLSB($imagePath)
     {
@@ -261,9 +279,8 @@ class CryptoController extends Controller
         $width = imagesx($img);
         $height = imagesy($img);
         $binaryData = '';
-        $dataIndex = 0;
 
-        // Baca semua bit secara berurutan
+        // Baca bit 8 dari setiap channel
         for ($y = 0; $y < $height && strlen($binaryData) < 1048576 * 8; $y++) {
             for ($x = 0; $x < $width && strlen($binaryData) < 1048576 * 8; $x++) {
                 $rgb = imagecolorat($img, $x, $y);
@@ -273,11 +290,10 @@ class CryptoController extends Controller
 
                 $channels = [$r, $g, $b];
                 foreach ($channels as $channel) {
-                    if (strlen($binaryData) >= 1048576 * 8) break;
-                    $bit5 = ($channel >> 3) & 0x01;
-                    $bit6 = ($channel >> 2) & 0x01;
-                    $binaryData .= $bit5 ^ $bit6;
-                    $dataIndex++;
+                    if (strlen($binaryData) < 1048576 * 8) {
+                        $bit8 = $channel & 0x01; // Baca bit 8
+                        $binaryData .= $bit8;
+                    }
                 }
             }
         }
@@ -305,7 +321,7 @@ class CryptoController extends Controller
         }
         $lengthBinary = substr($binaryData, 64, 32);
         $dataLength = bindec($lengthBinary);
-        Log::info("extractLSB: dataLength=$dataLength, requiredPixels=" . ceil(($dataLength * 8) / 3) . ", availablePixels=" . ($width * $height));
+        Log::info("extractLSB: dataLength=$dataLength, requiredPixels=" . ceil(($dataLength * 8 + 96) / 3) . ", availablePixels=" . ($width * $height));
         if ($dataLength > 1048576 || $dataLength < 0) {
             imagedestroy($img);
             throw new Exception('Panjang data tidak valid: ' . $dataLength);
